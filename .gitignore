@@ -1,0 +1,6 @@
+node_modules
+.next
+_raw
+_test
+*.tsbuildinfo
+.env*.local

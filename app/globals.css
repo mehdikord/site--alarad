@@ -1,0 +1,244 @@
+@import 'tailwindcss';
+
+/* ─────────────────────────────────────────────────────────────
+   الاردشاپ — Design tokens
+   Warm cream + soft sage. No pure black, no saturated hues.
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --font-sans: var(--font-vazirmatn), ui-sans-serif, system-ui, sans-serif;
+
+  /* cream / beige base */
+  --color-cream-50: #fffcf9;
+  --color-cream-100: #f8f4f0;
+  --color-cream-200: #f5ede6;
+  --color-cream-300: #efe5db;
+  --color-cream-400: #e4d7ca;
+
+  /* soft blush (very subtle) */
+  --color-blush-100: #f9eeea;
+  --color-blush-200: #f2ddd7;
+  --color-blush-300: #e9d2cb;
+  --color-blush-500: #b98477;
+
+  /* muted sage accent */
+  --color-sage-50: #f4f6f2;
+  --color-sage-100: #edf1ea;
+  --color-sage-200: #dbe2d5;
+  --color-sage-300: #c3cebb;
+  --color-sage-400: #a8b5a2;
+  --color-sage-500: #8fa08c;
+  --color-sage-600: #71816b;
+  --color-sage-700: #56644f;
+
+  /* warm ink */
+  --color-ink-900: #302c29;
+  --color-ink-800: #3c3733;
+  --color-ink-700: #4b4540;
+  --color-ink-500: #6e665f;
+  --color-ink-400: #8a817a;
+  --color-ink-300: #a39a92;
+  --color-ink-200: #c6bdb5;
+
+  --color-line: #e9dfd5;
+  --color-line-soft: #f0e8df;
+
+  /* radii — soft editorial */
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+
+  /* depth — never harsh */
+  --shadow-soft: 0 1px 2px rgba(58, 50, 44, 0.04), 0 10px 26px -16px rgba(58, 50, 44, 0.14);
+  --shadow-lift: 0 2px 4px rgba(58, 50, 44, 0.04), 0 22px 46px -22px rgba(58, 50, 44, 0.2);
+  --shadow-float: 0 8px 20px -10px rgba(58, 50, 44, 0.16), 0 40px 70px -40px rgba(58, 50, 44, 0.28);
+  --shadow-inset-line: inset 0 0 0 1px var(--color-line);
+
+  /* motion */
+  --ease-silk: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* typography scale tuned for Persian */
+  --text-display: 2rem;
+  --text-display--line-height: 1.3;
+  --text-display--font-weight: 600;
+  --text-h1: 1.625rem;
+  --text-h1--line-height: 1.36;
+  --text-h1--font-weight: 600;
+  --text-h2: 1.3125rem;
+  --text-h2--line-height: 1.45;
+  --text-h2--font-weight: 600;
+  --text-h3: 1.0625rem;
+  --text-h3--line-height: 1.55;
+  --text-h3--font-weight: 600;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.85;
+  --text-sm: 0.8438rem;
+  --text-sm--line-height: 1.8;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.7;
+
+  --animate-shimmer: shimmer 1.8s var(--ease-soft) infinite;
+  --animate-fade-in: fade-in 0.6s var(--ease-silk) both;
+  --animate-marquee: marquee 46s linear infinite;
+}
+
+@layer base {
+  @font-face {
+    font-family: 'Vazirmatn';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/vazirmatn-arabic-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF, U+200C-200D;
+  }
+  @font-face {
+    font-family: 'Vazirmatn';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/vazirmatn-latin-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2122;
+  }
+
+  :root {
+    --font-vazirmatn: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-cream-50);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.85;
+    font-weight: 400;
+    font-feature-settings: 'ss01' on;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    text-wrap: balance;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Persian digits everywhere numbers are displayed */
+  .fa-num {
+    font-feature-settings: 'ss01' on;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--color-sage-200);
+    color: var(--color-ink-900);
+  }
+
+  /* accessible, on-brand focus */
+  :focus-visible {
+    outline: 2px solid var(--color-sage-500);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* quiet scrollbars */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--color-cream-100); }
+  ::-webkit-scrollbar-thumb { background: var(--color-cream-400); border-radius: 999px; border: 3px solid var(--color-cream-100); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-sage-300); }
+
+  input, textarea, select, button { font-family: inherit; }
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* LTR for machine-readable fields (phone, postal, card) */
+  .ltr-num { direction: ltr; text-align: right; unicode-bidi: plaintext; }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .rail { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .rail > * { scroll-snap-align: start; }
+}
+
+@layer components {
+  .container-x {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+  @media (min-width: 640px) { .container-x { padding-inline: 1.5rem; } }
+  @media (min-width: 1024px) { .container-x { padding-inline: 2rem; } }
+
+  .prose-fa {
+    max-width: 62ch;
+    line-height: 2;
+    color: var(--color-ink-700);
+  }
+
+  .hairline { border-color: var(--color-line); }
+
+  /* soft section title with sage rule */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--text-caption);
+    font-weight: 500;
+    color: var(--color-sage-600);
+    letter-spacing: 0.02em;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 18px;
+    height: 1px;
+    background: var(--color-sage-400);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(50%); }
+}
+
+/* skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-cream-200) 25%, var(--color-cream-300) 37%, var(--color-cream-200) 63%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

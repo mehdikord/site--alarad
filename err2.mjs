@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch({ args: ['--no-sandbox'] });
+const p = await b.newPage();
+p.on('response', r => { if (r.status() >= 400) console.log(r.status(), r.url().slice(0, 160)); });
+p.on('pageerror', e => console.log('PAGEERROR:', e.message.slice(0, 500)));
+await p.goto(process.argv[2], { waitUntil: 'networkidle' });
+await p.waitForTimeout(1500);
+const txt = await p.evaluate(() => document.body.innerText.slice(0, 200));
+console.log('BODY:', txt.replace(/\n/g,' | '));
+await b.close();
