@@ -5,12 +5,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
-import { colorOf, sizeLabel } from '@/lib/data/taxonomy';
-import { shot } from '@/lib/images';
+import { PLACEHOLDER_BLUR } from '@/lib/images';
 import { money, num } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { ProductCardData } from '@/lib/card';
-import { productCardImage } from '@/lib/images';
 import { Badge } from '@/components/ui/badge';
 
 export function ProductCard({
@@ -25,20 +23,20 @@ export function ProductCard({
   className?: string;
 }) {
   const defaultColor = React.useMemo(() => {
-    const order = ['cream', 'oat', 'blush', 'sage', 'rose', 'dove', 'navy', 'charcoal', 'black'];
     const inStock = product.colors.filter((c) => (product.colorStock?.[c] ?? 1) > 0);
-    const pool = inStock.length ? inStock : product.colors;
-    return [...pool].sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
+    return (inStock.length ? inStock : product.colors)[0] ?? '';
   }, [product.colors, product.colorStock]);
+  const colorOf = (key: string) => product.palette[key] ?? { key, name: key, hex: '#E3D5C3' };
   const [activeColor, setActiveColor] = React.useState(defaultColor);
   const [hovered, setHovered] = React.useState(false);
   
-  const primary = shot(product.shots[0], activeColor);
-  const secondary = shot(product.shots[1] ?? product.shots[0], activeColor);
+  const photos = product.images[activeColor]?.length ? product.images[activeColor] : product.images[''] ?? [];
+  const primary = photos[0] ?? { src: '/images/hero.webp', blur: PLACEHOLDER_BLUR };
+  const secondary = photos[1] ?? primary;
   const stock = product.colorStock?.[activeColor] ?? product.totalStock;
   const soldOut = product.totalStock <= 0;
   const low = !soldOut && stock > 0 && stock <= 5;
-  const activeName = colorOf(activeColor).name;
+  const activeName = activeColor ? colorOf(activeColor).name : '';
 
   const discount =
     product.compareAtPrice && product.compareAtPrice > product.price
@@ -60,7 +58,7 @@ export function ProductCard({
           <div className="relative aspect-[4/5] w-full">
             <Image
               src={primary.src}
-              alt={`${product.name} — ${activeName}`}
+              alt={activeName ? `${product.name} — ${activeName}` : product.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               placeholder="blur"
@@ -167,7 +165,7 @@ export function ProductCard({
                     activeColor === c && 'ring-[1.5px] ring-ink-900/70 ring-offset-[2px] ring-offset-cream-50',
                     out && 'opacity-40',
                   )}
-                  style={{ backgroundImage: co.swatch }}
+                  style={{ backgroundColor: co.hex, backgroundImage: co.swatch }}
                 />
               );
             })}
@@ -200,16 +198,21 @@ export function ProductCard({
           )}
         </div>
         {/* mobile: show active colour name so swatch interaction is explicit */}
-        <p className="mt-1 flex items-center gap-1.5 text-[0.6875rem] text-ink-300 sm:hidden">
-          <span className="size-2.5 rounded-full border border-white/80" style={{ backgroundImage: colorOf(activeColor).swatch }} />
-          {activeName}
-          <span className="text-cream-400">•</span>
-          {num(product.colors.length)} رنگ
-        </p>
+        {activeColor && (
+          <p className="mt-1 flex items-center gap-1.5 text-[0.6875rem] text-ink-300 sm:hidden">
+            <span
+              className="size-2.5 rounded-full border border-white/80"
+              style={{ backgroundColor: colorOf(activeColor).hex, backgroundImage: colorOf(activeColor).swatch }}
+            />
+            {activeName}
+            <span className="text-cream-400">•</span>
+            {num(product.colors.length)} رنگ
+          </p>
+        )}
         <div className="mt-1.5 hidden flex-wrap gap-1 sm:flex">
-          {product.sizes.slice(0, 5).map((s) => (
+          {product.sizeLabels.slice(0, 5).map((s) => (
             <span key={s} className="rounded-md bg-cream-200/70 px-1.5 py-0.5 text-[0.625rem] text-ink-400">
-              {sizeLabel(s)}
+              {s}
             </span>
           ))}
         </div>

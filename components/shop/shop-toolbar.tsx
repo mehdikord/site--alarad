@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Search, X, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { num } from '@/lib/format';
-import { COLORS, sizeLabel } from '@/lib/data/taxonomy';
+import { useFacets } from '@/components/shop/facets';
 import { buildHref, SORT_OPTIONS, type ShopQuery, type SortKey } from '@/lib/shop';
 import { FilterSheetTrigger, FilterPanel } from '@/components/shop/filter-panel';
 import { Sheet } from '@/components/ui/misc';
@@ -164,14 +164,15 @@ export function ShopToolbar({
 
 export function ActiveFilterChips({ query, base }: { query: ShopQuery; base: string }) {
   const router = useRouter();
+  const { colors, sizes } = useFacets();
   const push = (patch: Partial<ShopQuery>) => router.push(buildHref(base, query, patch), { scroll: false });
   const chips: { label: string; onRemove: () => void }[] = [];
 
   query.colors.forEach((c) =>
-    chips.push({ label: `رنگ: ${COLORS[c]?.name ?? c}`, onRemove: () => push({ colors: query.colors.filter((x) => x !== c) }) }),
+    chips.push({ label: `رنگ: ${colors.find((x) => x.key === c)?.name ?? c}`, onRemove: () => push({ colors: query.colors.filter((x) => x !== c) }) }),
   );
   query.sizes.forEach((s) =>
-    chips.push({ label: `سایز: ${sizeLabel(s)}`, onRemove: () => push({ sizes: query.sizes.filter((x) => x !== s) }) }),
+    chips.push({ label: `سایز: ${sizes.find((x) => x.key === s)?.label ?? s}`, onRemove: () => push({ sizes: query.sizes.filter((x) => x !== s) }) }),
   );
   if (query.q) chips.push({ label: `«${query.q}»`, onRemove: () => push({ q: '' }) });
   if (query.audience) chips.push({ label: 'مخاطب', onRemove: () => push({ audience: null }) });

@@ -5,11 +5,10 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Heart, Minus, Plus, ShieldCheck, ShoppingBag, Truck, RotateCcw } from 'lucide-react';
 import type { Product } from '@/lib/types';
-import { colorOf, sizeLabel, sizeNote } from '@/lib/data/taxonomy';
-import { gallery } from '@/lib/images';
+import { imagesForColor } from '@/lib/card';
 import { money, num, toman } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { useCart, makeCartItem, useUi } from '@/lib/store';
+import { useCart, makeCartItem, useUi, useAuth, api } from '@/lib/store';
 import { Gallery } from '@/components/product/gallery';
 import { Accordion, QuantityStepper, Stars } from '@/components/ui/misc';
 import { Badge, StockBadge } from '@/components/ui/badge';
@@ -20,18 +19,24 @@ export interface ProductDetailProps {
   /** colorStock[color][size] = stock */
   stockMatrix: Record<string, Record<string, number>>;
   categoryName: string;
+  freeShippingThreshold: number;
+  wishlisted?: boolean;
 }
 
-export function ProductDetail({ product, stockMatrix, categoryName }: ProductDetailProps) {
-    const add = useCart((s) => s.add);
+export function ProductDetail({ product, stockMatrix, categoryName, freeShippingThreshold, wishlisted = false }: ProductDetailProps) {
+  const add = useCart((s) => s.add);
   const notify = useUi((s) => s.notify);
+  const user = useAuth((s) => s.user);
+  const colorOf = (key: string) => product.palette[key] ?? { key, name: key || 'تک‌رنگ', hex: '#E3D5C3', swatch: undefined };
+  const sizeLabel = (key: string) => product.sizeMeta[key]?.label ?? key;
+  const sizeNote = (key: string) => product.sizeMeta[key]?.note;
 
   const firstAvailableColor =
     product.colors.find((c) => Object.values(stockMatrix[c] ?? {}).some((n) => n > 0)) ?? product.colors[0];
   const [color, setColor] = React.useState(firstAvailableColor);
   const [size, setSize] = React.useState<string | null>(null);
   const [qty, setQty] = React.useState(1);
-  const [wish, setWish] = React.useState(false);
+  const [wish, setWish] = React.useState(wishlisted);
   const [flash, setFlash] = React.useState(false);
 
   const sizesForColor = stockMatrix[color] ?? {};
@@ -51,7 +56,7 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
   );
   const soldOut = totalStock <= 0;
   const low = !soldOut && stock > 0 && stock <= 5;
-  const images = gallery(product.shots, color);
+  const images = imagesForColor(product.images, color || null).map((im, i) => ({ src: im.src, blur: im.blur, key: `${im.src}-${i}` }));
   const discount =
     product.compareAtPrice && product.compareAtPrice > product.price
       ? Math.round((1 - product.price / product.compareAtPrice) * 100)
@@ -62,7 +67,12 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
       notify('لطفاً رنگ و سایز موجود را انتخاب کنید.', 'error');
       return;
     }
-    add(makeCartItem(product, color, size, qty, stock));
+    const item = makeCartItem(product, color, size, qty);
+    if (!item) {
+      notify('این ترکیب رنگ و سایز موجود نیست.', 'error');
+      return;
+    }
+    add(item);
     notify('به سبد خرید اضافه شد.', 'success');
     setFlash(true);
     setTimeout(() => setFlash(false), 1600);
@@ -106,7 +116,18 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
             </div>
             <button
               type="button"
-              onClick={() => setWish((w) => !w)}
+              onClick={async () => {
+                if (!user) {
+                  notify('برای ذخیرهٔ علاقه‌مندی‌ها ابتدا وارد حساب شوید.');
+                  return;
+                }
+                setWish((w) => !w);
+                const res = await api<{ wishlisted: boolean }>('/api/wishlist', { productId: product.id });
+                if (res.ok) {
+                  setWish(res.wishlisted);
+                  notify(res.wishlisted ? 'به علاقه‌مندی‌ها اضافه شد.' : 'از علاقه‌مندی‌ها حذف شد.', 'success');
+                } else setWish((w) => !w);
+              }}
               aria-pressed={wish}
               aria-label="افزودن به علاقه‌مندی‌ها"
               className={cn(
@@ -155,7 +176,7 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
           <div className="my-5 h-px bg-line-soft" />
 
           {/* colour */}
-          <div>
+          <div className={cn(product.colors.length === 1 && product.colors[0] === '' && 'hidden')}>
             <div className="mb-2.5 flex items-center justify-between">
               <p className="text-[0.8125rem] font-medium text-ink-900">
                 رنگ: <span className="font-normal text-ink-500">{colorOf(color).name}</span>
@@ -182,7 +203,7 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
                   >
                     <span
                       className="size-7 rounded-full border border-white/80 shadow-[0_1px_3px_rgba(58,50,44,.2)]"
-                      style={{ backgroundImage: co.swatch }}
+                      style={{ backgroundColor: co.hex, backgroundImage: co.swatch }}
                     />
                     {colStock === 0 && (
                       <span className="absolute inset-0 flex items-center justify-center">
@@ -196,7 +217,7 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
           </div>
 
           {/* size */}
-          <div className="mt-5">
+          <div className={cn('mt-5', product.sizes.length === 1 && product.sizes[0] === '' && 'hidden')}>
             <div className="mb-2.5 flex items-center justify-between">
               <p className="text-[0.8125rem] font-medium text-ink-900">سایز</p>
               <Link href="/help#sizes" className="text-[0.6875rem] text-sage-700 underline decoration-sage-300 underline-offset-4">
@@ -291,7 +312,7 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
           </div>
 
           <p className="mt-3 hidden text-[0.6875rem] leading-relaxed text-ink-400 sm:block">
-            ارسال رایگان برای سفارش‌های بالای {toman(500000)} · پرداخت درگاه امن · بازگشت ۷ روزه بدون پرسش
+            ارسال رایگان برای سفارش‌های بالای {toman(freeShippingThreshold)} · پرداخت درگاه امن · بازگشت ۷ روزه بدون پرسش
           </p>
 
           {/* details */}
@@ -321,7 +342,7 @@ export function ProductDetail({ product, stockMatrix, categoryName }: ProductDet
             </Accordion>
             <Accordion title="ارسال و بازگشت">
               <ul className="space-y-2">
-                <li>ارسال با پست پیشتاز: ۲ تا ۴ روز کاری — ۴۹٬۰۰۰ تومان (رایگان بالای ۵۰۰٬۰۰۰ تومان).</li>
+                <li>ارسال با پست پیشتاز: ۲ تا ۴ روز کاری (رایگان برای سفارش‌های بالای {toman(freeShippingThreshold)}).</li>
                 <li>ارسال سریع تهران و کرج: همان روز برای سفارش‌های تا ساعت ۱۲.</li>
                 <li>بازگشت یا تعویض تا ۷ روز پس از دریافت، در صورت باز نشدن بسته‌بندی بهداشتی.</li>
                 <li>کد رهگیری مرسوله پس از ارسال در بخش «سفارش‌های من» نمایش داده می‌شود.</li>

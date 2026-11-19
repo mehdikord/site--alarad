@@ -4,17 +4,17 @@ import * as React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Check, Clock, Copy, MapPin, Package, Truck } from 'lucide-react';
-import { useOrders, useHydrated } from '@/lib/store';
+import { useUi } from '@/lib/store';
 import { toman, num, date } from '@/lib/format';
 import { ButtonLink } from '@/components/ui/button';
-import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import type { OrderView } from '@/lib/types';
+import { ORDER_STATUS, PAYMENT_METHOD_LABEL } from '@/lib/order-meta';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-export function SuccessView({ code }: { code: string }) {
-  const hydrated = useHydrated();
-  const order = useOrders((s) => s.orders.find((o) => o.code === code));
+export function SuccessView({ code, order }: { code: string; order: OrderView | null }) {
+  const hydrated = true;
   const notify = useUi((s) => s.notify);
   const [copied, setCopied] = React.useState(false);
 
@@ -54,7 +54,9 @@ export function SuccessView({ code }: { code: string }) {
           transition={{ duration: 0.6, delay: 0.25, ease: EASE }}
           className="mt-2 text-[0.8125rem] leading-[1.9] text-ink-500"
         >
-          پیامک تأیید برای شما ارسال شد. سفارش شما در حال آماده‌سازی است و پس از تحویل به پست، کد رهگیری در حساب کاربری‌تان فعال می‌شود.
+          {order?.paymentMethod === 'cod'
+            ? 'سفارش شما ثبت شد و مبلغ آن هنگام تحویل دریافت می‌شود. پس از ارسال، کد رهگیری مرسوله در حساب کاربری‌تان نمایش داده می‌شود.'
+            : 'پرداخت شما تأیید شد و سفارش در حال آماده‌سازی است. پس از تحویل به پست، کد رهگیری مرسوله در حساب کاربری‌تان فعال می‌شود.'}
         </motion.p>
 
         <motion.div
@@ -93,9 +95,9 @@ export function SuccessView({ code }: { code: string }) {
                 ارسال به
               </p>
               <p className="mt-1.5 text-[0.75rem] leading-[1.9] text-ink-500">
-                {order.address.fullName}
+                {order.receiver.name}
                 <br />
-                {order.address.province}، {order.address.city}، {order.address.line1}
+                {order.receiver.province}، {order.receiver.city}، {order.receiver.address}
               </p>
             </div>
             <div>
@@ -112,9 +114,16 @@ export function SuccessView({ code }: { code: string }) {
             <div>
               <p className="flex items-center gap-1.5 text-[0.6875rem] font-medium text-ink-900">
                 <Package className="size-3.5 text-sage-600" strokeWidth={1.8} />
-                مبلغ پرداخت‌شده
+                {order.paymentStatus === 'paid' ? 'مبلغ پرداخت‌شده' : 'مبلغ سفارش'}
               </p>
-              <p className="mt-1.5 text-[0.75rem] text-ink-500">{toman(order.totals.grandTotal)} ({num(order.totals.itemCount)} قلم)</p>
+              <p className="mt-1.5 text-[0.75rem] text-ink-500">
+                {toman(order.totals.total)} ({num(order.totals.itemCount)} قلم) · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
+              </p>
+              {order.payment?.refId && (
+                <p className="mt-0.5 text-[0.6875rem] text-ink-400">
+                  کد پیگیری بانکی: <span dir="ltr">{order.payment.refId}</span>
+                </p>
+              )}
             </div>
             <div>
               <p className="flex items-center gap-1.5 text-[0.6875rem] font-medium text-ink-900">
@@ -128,11 +137,12 @@ export function SuccessView({ code }: { code: string }) {
           {order.items.length > 0 && (
             <ul className="mt-5 space-y-2 border-t border-line-soft pt-4">
               {order.items.map((i) => (
-                <li key={i.key} className="flex items-center justify-between gap-2 text-[0.75rem]">
+                <li key={i.id} className="flex items-center justify-between gap-2 text-[0.75rem]">
                   <span className="min-w-0 text-ink-600">
-                    {i.name} <span className="text-[0.625rem] text-ink-300">· {i.colorName} · {i.sizeLabel}</span>
+                    {i.name}{' '}
+                    <span className="text-[0.625rem] text-ink-300">{[i.colorName, i.sizeLabel].filter(Boolean).map((x) => `· ${x}`).join(' ')}</span>
                   </span>
-                  <span className="shrink-0 text-ink-800">{num(i.qty)} عدد</span>
+                  <span className="shrink-0 text-ink-800">{num(i.quantity)} عدد</span>
                 </li>
               ))}
             </ul>
@@ -143,7 +153,7 @@ export function SuccessView({ code }: { code: string }) {
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-sage-400 opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-sage-500" />
             </span>
-            وضعیت فعلی: در حال آماده‌سازی در انبار
+            وضعیت فعلی: {ORDER_STATUS[order.status].label}
           </div>
         </motion.div>
       )}

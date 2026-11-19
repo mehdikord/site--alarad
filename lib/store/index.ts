@@ -3,10 +3,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useEffect, useState } from 'react';
-import type { CartItem, Product } from '@/lib/types';
-import { colorOf, sizeLabel } from '@/lib/data/taxonomy';
-import { productBySlug } from '@/lib/data/products';
-import { shot } from '@/lib/images';
+import type { CartItem, Product, User } from '@/lib/types';
+import { imagesForColor } from '@/lib/card';
 
 /* ───────────────────────── hydration guard ───────────────────────── */
 export function useHydrated() {
@@ -23,13 +21,15 @@ interface CartState {
   add: (item: Omit<CartItem, 'key'>) => void;
   remove: (key: string) => void;
   setQty: (key: string, qty: number) => void;
+  /** apply server-side validation (price / stock changes, removed variants) */
+  sync: (lines: { variantId: string; price: number; maxStock: number }[], removed: string[]) => void;
   clear: () => void;
   open: () => void;
   close: () => void;
   toggle: () => void;
 }
 
-export const cartKey = (productId: string, color: string, size: string) => `${productId}:${color}:${size}`;
+export const cartKey = (variantId: string) => `v:${variantId}`;
 
 export const useCart = create<CartState>()(
   persist(
@@ -38,13 +38,13 @@ export const useCart = create<CartState>()(
       isOpen: false,
       lastAdded: null,
       add: (incoming) => {
-        const key = cartKey(incoming.productId, incoming.color, incoming.size);
+        const key = cartKey(incoming.variantId);
         const existing = get().items.find((i) => i.key === key);
         const max = incoming.maxStock;
         set({
           items: existing
-            ? get().items.map((i) => (i.key === key ? { ...i, qty: Math.min(i.qty + incoming.qty, max) } : i))
-            : [...get().items, { ...incoming, key }],
+            ? get().items.map((i) => (i.key === key ? { ...i, qty: Math.min(i.qty + incoming.qty, max), maxStock: max, price: incoming.price } : i))
+            : [...get().items, { ...incoming, qty: Math.min(incoming.qty, max), key }],
           isOpen: true,
           lastAdded: key,
         });
@@ -56,131 +56,91 @@ export const useCart = create<CartState>()(
             .items.map((i) => (i.key === key ? { ...i, qty: Math.max(1, Math.min(qty, i.maxStock)) } : i))
             .filter((i) => i.qty > 0),
         }),
+      sync: (lines, removed) => {
+        const byId = new Map(lines.map((l) => [l.variantId, l]));
+        set({
+          items: get()
+            .items.filter((i) => !removed.includes(i.variantId))
+            .map((i) => {
+              const l = byId.get(i.variantId);
+              if (!l) return i;
+              return { ...i, price: l.price, maxStock: l.maxStock, qty: Math.max(1, Math.min(i.qty, l.maxStock)) };
+            })
+            .filter((i) => i.maxStock > 0),
+        });
+      },
       clear: () => set({ items: [], lastAdded: null }),
       open: () => set({ isOpen: true }),
       close: () => set({ isOpen: false }),
       toggle: () => set({ isOpen: !get().isOpen }),
     }),
-    { name: 'alarad-cart', skipHydration: true, partialize: (s) => ({ items: s.items }) as CartState },
+    {
+      name: 'alarad-cart',
+      version: 2,
+      skipHydration: true,
+      partialize: (s) => ({ items: s.items }) as CartState,
+      // v1 carts came from the mock catalogue (no variant ids) — drop them
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as { items?: CartItem[] };
+        if (version < 2) return { items: [] } as unknown as CartState;
+        return { items: (state.items ?? []).filter((i) => i.variantId) } as unknown as CartState;
+      },
+    },
   ),
 );
 
 /** Build a cart item from product + selection (shared by PDP and quick-add). */
-export function makeCartItem(product: Product, color: string, size: string, qty: number, stock: number): Omit<CartItem, 'key'> {
-  const c = colorOf(color);
+export function makeCartItem(product: Product, color: string, size: string, qty: number): Omit<CartItem, 'key'> | null {
+  const variant = product.variants.find((v) => v.color === color && v.size === size);
+  if (!variant) return null;
+  const c = product.palette[color];
   return {
     productId: product.id,
+    variantId: variant.id,
     slug: product.slug,
     name: product.name,
     color,
-    colorName: c.name,
-    colorHex: c.hex,
+    colorName: c?.name ?? '',
+    colorHex: c?.hex ?? '',
     size,
-    sizeLabel: sizeLabel(size),
-    price: product.price,
+    sizeLabel: product.sizeMeta[size]?.label ?? size,
+    price: variant.price ?? product.price,
     qty,
-    maxStock: stock,
-    image: shot(product.shots[0], color).src,
+    maxStock: variant.stock,
+    image: imagesForColor(product.images, color || null)[0]?.src ?? '/images/hero.webp',
   };
-}
-
-/* ─────────────────────────── catalog ─────────────────────────── */
-export interface ProductPatch {
-  name?: string;
-  subtitle?: string;
-  price?: number;
-  compareAtPrice?: number | null;
-  tags?: Product['tags'];
-  archived?: boolean;
-}
-
-interface CatalogState {
-  patches: Record<string, ProductPatch>;
-  stock: Record<string, number>;
-  custom: Product[];
-  patchProduct: (id: string, patch: ProductPatch) => void;
-  setStock: (variantId: string, value: number) => void;
-  setColorSizeStock: (productId: string, color: string, size: string, value: number) => void;
-  addProduct: (p: Product) => void;
-  reset: () => void;
-}
-
-export const useCatalog = create<CatalogState>()(
-  persist(
-    (set, get) => ({
-      patches: {},
-      stock: {},
-      custom: [],
-      patchProduct: (id, patch) => set({ patches: { ...get().patches, [id]: { ...get().patches[id], ...patch } } }),
-      setStock: (variantId, value) => set({ stock: { ...get().stock, [variantId]: Math.max(0, value) } }),
-      setColorSizeStock: (productId, color, size, value) => {
-        const variantId = `${productId}-${color}-${size}`;
-        set({ stock: { ...get().stock, [variantId]: Math.max(0, value) } });
-      },
-      addProduct: (p) => set({ custom: [p, ...get().custom] }),
-      reset: () => set({ patches: {}, stock: {}, custom: [] }),
-    }),
-    { name: 'alarad-catalog', skipHydration: true },
-  ),
-);
-
-/** merge helper used by client components */
-export function mergeProduct(base: Product, patches: Record<string, ProductPatch>): Product {
-  const patch = patches[base.id];
-  if (!patch) return base;
-  return {
-    ...base,
-    name: patch.name ?? base.name,
-    subtitle: patch.subtitle ?? base.subtitle,
-    price: patch.price ?? base.price,
-    compareAtPrice: patch.compareAtPrice === null ? undefined : patch.compareAtPrice ?? base.compareAtPrice,
-    tags: patch.tags ?? base.tags,
-  };
-}
-
-export function resolveStock(product: Product, color: string, size: string, stockMap: Record<string, number>) {
-  const variantId = `${product.id}-${color}-${size}`;
-  if (stockMap[variantId] !== undefined) return stockMap[variantId];
-  const v = product.variants.find((x) => x.color === color && x.size === size);
-  return v?.stock ?? 0;
-}
-
-export function resolveTotalStock(product: Product, stockMap: Record<string, number>) {
-  return product.variants.reduce((sum, v) => sum + (stockMap[v.id] ?? v.stock), 0);
-}
-
-/** client hook: product with admin overrides + stock map */
-export function useLiveProduct(slug: string) {
-  const { patches, stock, custom } = useCatalog();
-  const base = custom.find((p) => p.slug === slug) ?? productBySlug(slug);
-  if (!base) return null;
-  return { product: mergeProduct(base, patches), stockMap: stock };
 }
 
 /* ───────────────────────────── auth ───────────────────────────── */
 interface AuthState {
-  user: { name: string; phone: string } | null;
-  login: (name: string, phone: string) => void;
-  logout: () => void;
-  update: (patch: { name?: string; phone?: string }) => void;
+  user: User | null;
+  /** true once /api/auth/me has answered */
+  ready: boolean;
+  setUser: (user: User | null) => void;
+  refresh: () => Promise<User | null>;
+  logout: () => Promise<void>;
 }
 
-export const useAuth = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      login: (name, phone) => set({ user: { name, phone } }),
-      logout: () => set({ user: null }),
-      update: (patch) =>
-        set({
-          user: get().user
-            ? { name: patch.name ?? get().user!.name, phone: patch.phone ?? get().user!.phone }
-            : null,
-        }),
-    }),
-    { name: 'alarad-auth', skipHydration: true },
-  ),
-);
+export const useAuth = create<AuthState>()((set) => ({
+  user: null,
+  ready: false,
+  setUser: (user) => set({ user, ready: true }),
+  refresh: async () => {
+    try {
+      const res = await fetch('/api/auth/me', { cache: 'no-store' });
+      const json = (await res.json()) as { user: User | null };
+      set({ user: json.user, ready: true });
+      return json.user;
+    } catch {
+      set({ ready: true });
+      return null;
+    }
+  },
+  logout: async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+    set({ user: null, ready: true });
+  },
+}));
 
 /* ────────────────────────────── ui ────────────────────────────── */
 interface UiState {
@@ -201,4 +161,18 @@ export const useUi = create<UiState>()((set) => ({
   dismiss: () => set({ toast: null }),
 }));
 
-export { useOrders, STATUS_META, STATUS_STEPS } from '@/lib/store/orders';
+/* ─────────────────────────── tiny fetch helper ─────────────────────────── */
+export async function api<T = unknown>(url: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<T & { ok: boolean; message?: string }> {
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: 'no-store',
+    });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok, ...json } as T & { ok: boolean; message?: string };
+  } catch {
+    return { ok: false, message: 'ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید.' } as T & { ok: boolean; message?: string };
+  }
+}

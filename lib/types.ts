@@ -1,7 +1,8 @@
-export type CategorySlug = 'socks' | 'tights' | 'hair' | 'underwear';
+export type CategorySlug = string;
 export type Audience = 'women' | 'men' | 'kids' | 'unisex';
-export type ProductTag = 'new' | 'bestseller' | 'recommended' | 'gift' | 'winter' | 'cotton' | 'sheer';
+export type ProductTag = string;
 
+/** seed-data shape (prisma/seeders/data/categories.ts) */
 export interface Category {
   slug: CategorySlug;
   name: string;
@@ -11,6 +12,29 @@ export interface Category {
   image: string;
   count: number;
   accent: string;
+}
+
+/** nested category as served to the storefront */
+export interface CategoryNode {
+  id: number;
+  parentId: number | null;
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string;
+  image: string | null;
+  imageBlur: string | null;
+  accent: string | null;
+  productCount: number;
+  children: CategoryNode[];
+}
+
+export interface ProductImage {
+  src: string;
+  blur: string;
+  /** colour key this photo belongs to (null = all colours) */
+  color: string | null;
+  alt?: string;
 }
 
 export interface ColorOption {
@@ -42,15 +66,20 @@ export interface Product {
   name: string;
   subtitle: string;
   description: string[];
+  /** leaf category slug */
   category: CategorySlug;
+  categoryName: string;
+  /** root → leaf */
+  categoryPath: { slug: string; name: string }[];
   audience: Audience;
   price: number;
   compareAtPrice?: number;
   colors: string[];
   sizes: string[];
   variants: Variant[];
-  /** asset keys without colour suffix; resolved per selected colour */
-  shots: string[];
+  images: ProductImage[];
+  palette: Record<string, ColorOption>;
+  sizeMeta: Record<string, SizeOption>;
   details: { material: string; care: string; origin: string };
   rating: number;
   reviewCount: number;
@@ -64,6 +93,7 @@ export interface Product {
 export interface CartItem {
   key: string;
   productId: string;
+  variantId: string;
   slug: string;
   name: string;
   color: string;
@@ -80,8 +110,8 @@ export interface CartItem {
 export interface Address {
   fullName: string;
   phone: string;
-  province: string;
-  city: string;
+  provinceId: number | null;
+  cityId: number | null;
   postalCode: string;
   line1: string;
   line2?: string;
@@ -106,29 +136,48 @@ export interface CartTotals {
   freeShippingGap: number;
 }
 
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
 
-export interface OrderTimelineEntry {
-  status: OrderStatus | 'placed';
-  at: string;
-  note?: string;
-}
-
-export interface Order {
+/** order as shown to the customer */
+export interface OrderView {
   code: string;
   createdAt: string;
-  items: CartItem[];
-  address: Address;
-  shipping: ShippingMethod;
-  payment: { method: string; maskedCard: string; paidAt: string; ref: string };
-  coupon?: { code: string; amount: number };
-  totals: CartTotals;
   status: OrderStatus;
-  timeline: OrderTimelineEntry[];
-  phone: string;
+  paymentStatus: 'unpaid' | 'paid' | 'failed' | 'refunded';
+  paymentMethod: 'online' | 'cod';
+  items: {
+    id: number;
+    productSlug: string | null;
+    name: string;
+    sku: string | null;
+    colorName: string | null;
+    colorHex: string | null;
+    sizeLabel: string | null;
+    image: string | null;
+    unitPrice: number;
+    quantity: number;
+    total: number;
+  }[];
+  receiver: { name: string; phone: string; province: string; city: string; postalCode: string; address: string; unit: string | null };
+  shipping: { title: string; eta: string; cost: number };
+  totals: { subtotal: number; discount: number; shipping: number; tax: number; total: number; itemCount: number };
+  couponCode: string | null;
+  payment: { gateway: string; refId: string | null; cardPan: string | null; paidAt: string | null } | null;
+  shipments: {
+    carrier: string | null;
+    trackingCode: string | null;
+    trackingUrl: string | null;
+    status: 'pending' | 'preparing' | 'shipped' | 'delivered' | 'returned';
+    shippedAt: string | null;
+    deliveredAt: string | null;
+  }[];
+  timeline: { status: OrderStatus; note: string | null; at: string }[];
+  canPay: boolean;
+  canCancel: boolean;
 }
 
 export interface User {
+  id: number;
   name: string;
   phone: string;
   email?: string;
@@ -142,4 +191,5 @@ export interface Review {
   date: string;
   body: string;
   verified: boolean;
+  reply?: string;
 }

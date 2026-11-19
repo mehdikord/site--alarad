@@ -7,7 +7,7 @@ import { ShoppingBag, Trash2 } from 'lucide-react';
 import { useCart, useHydrated } from '@/lib/store';
 import { computeTotals, freeShippingProgress } from '@/lib/pricing';
 import { money, num, toman } from '@/lib/format';
-import { colorOf, sizeLabel, FREE_SHIPPING_THRESHOLD } from '@/lib/data/taxonomy';
+import { useStoreConfig } from '@/components/layout/store-config';
 import { Sheet, QuantityStepper, EmptyState } from '@/components/ui/misc';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -15,8 +15,9 @@ import { cn } from '@/lib/utils';
 export function CartDrawer() {
   const { items, isOpen, close, remove, setQty } = useCart();
   const hydrated = useHydrated();
-  const totals = computeTotals(items);
-  const progress = freeShippingProgress(totals.subtotal);
+  const { freeShippingThreshold: FREE_SHIPPING_THRESHOLD, taxRate } = useStoreConfig();
+  const totals = computeTotals(items, { taxRate, freeShippingThreshold: FREE_SHIPPING_THRESHOLD });
+  const progress = freeShippingProgress(totals.subtotal, FREE_SHIPPING_THRESHOLD);
 
   return (
     <Sheet
@@ -104,11 +105,11 @@ export function CartDrawer() {
                       </Link>
                       <div className="mt-1 flex items-center gap-2 text-[0.6875rem] text-ink-400">
                         <span className="inline-flex items-center gap-1">
-                          <span className="size-2.5 rounded-full border border-white/70" style={{ backgroundImage: colorOf(item.color).swatch }} />
+                          <span className="size-2.5 rounded-full border border-white/70" style={{ backgroundColor: item.colorHex || '#E3D5C3' }} />
                           {item.colorName}
                         </span>
                         <span className="text-cream-400">•</span>
-                        <span>سایز {sizeLabel(item.size)}</span>
+                        <span>سایز {item.sizeLabel}</span>
                       </div>
                       <div className="mt-auto flex items-center justify-between gap-2 pt-2">
                         <QuantityStepper value={item.qty} onChange={(v) => setQty(item.key, v)} max={item.maxStock} size="sm" />

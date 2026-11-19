@@ -3,18 +3,26 @@
 import * as React from 'react';
 import { Check, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { api, useUi } from '@/lib/store';
 
 export function NewsletterForm() {
   const [email, setEmail] = React.useState('');
   const [done, setDone] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const notify = useUi((s) => s.notify);
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        if (!email.trim()) return;
-        setDone(true);
-        setEmail('');
+        if (!email.trim() || busy) return;
+        setBusy(true);
+        const res = await api('/api/newsletter', { contact: email.trim() });
+        setBusy(false);
+        if (res.ok) {
+          setDone(true);
+          setEmail('');
+        } else notify(res.message ?? 'ثبت نشد؛ دوباره تلاش کنید.', 'error');
       }}
       className="relative"
     >
@@ -22,7 +30,7 @@ export function NewsletterForm() {
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          type="email"
+          type="text"
           required
           placeholder="ایمیل یا شمارهٔ همراه"
           aria-label="ایمیل برای خبرنامه"

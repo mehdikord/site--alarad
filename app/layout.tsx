@@ -1,11 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from '@/components/layout/providers';
-import { SiteHeader } from '@/components/layout/site-header';
-import { SiteFooter } from '@/components/layout/site-footer';
-import { CartDrawer } from '@/components/cart/cart-drawer';
 import { ToastHost } from '@/components/layout/toast-host';
-import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://alarad.shop'),
@@ -52,19 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh antialiased">
         <Providers>
-          <a
-            href="#main"
-            className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[200] focus:rounded-full focus:bg-ink-900 focus:px-4 focus:py-2 focus:text-sm focus:text-cream-50"
-          >
-            رفتن به محتوای اصلی
-          </a>
-          <SiteHeader />
-          <main id="main" className="min-h-[60vh] pb-20 sm:pb-0">
-            {children}
-          </main>
-          <SiteFooter />
-          <MobileTabBar />
-          <CartDrawer />
+          {children}
           <ToastHost />
         </Providers>
       </body>

@@ -3,25 +3,18 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
-import { COLORS } from '@/lib/data/taxonomy';
-import { PRICE_BOUNDS } from '@/lib/data/products';
+import { useFacets } from '@/components/shop/facets';
 import { money, num, toLatinDigits } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import {
-  COLOR_FILTERS,
-  SIZE_FILTERS,
-  FILTER_SIZE_LABEL,
-  AUDIENCE_LABELS,
-  buildHref,
-  type ShopQuery,
-} from '@/lib/shop';
+import { AUDIENCE_LABELS, activeFilterCount, buildHref, type ShopQuery } from '@/lib/shop';
 
 /** Multi-select colour swatches */
 function ColorFilter({ selected, onToggle }: { selected: string[]; onToggle: (c: string) => void }) {
+  const { colors } = useFacets();
   return (
     <div className="grid grid-cols-3 gap-2">
-      {COLOR_FILTERS.map((key) => {
-        const c = COLORS[key];
+      {colors.map((c) => {
+        const key = c.key;
         const active = selected.includes(key);
         return (
           <button
@@ -35,7 +28,7 @@ function ColorFilter({ selected, onToggle }: { selected: string[]; onToggle: (c:
             )}
           >
             <span className="relative flex size-5 shrink-0 items-center justify-center rounded-full border border-white shadow-[0_1px_3px_rgba(58,50,44,.18)]">
-              <span className="absolute inset-0 rounded-full" style={{ backgroundImage: c.swatch }} />
+              <span className="absolute inset-0 rounded-full" style={{ backgroundColor: c.hex, backgroundImage: c.swatch }} />
               {active && <Check className="relative size-3 text-ink-900/80" strokeWidth={3} />}
             </span>
             <span className={cn('truncate text-[0.6875rem]', active ? 'text-ink-900' : 'text-ink-500')}>{c.name}</span>
@@ -47,9 +40,10 @@ function ColorFilter({ selected, onToggle }: { selected: string[]; onToggle: (c:
 }
 
 function SizeFilter({ selected, onToggle }: { selected: string[]; onToggle: (s: string) => void }) {
+  const { sizes } = useFacets();
   return (
     <div className="flex flex-wrap gap-1.5">
-      {SIZE_FILTERS.map((key) => {
+      {sizes.map(({ key, label }) => {
         const active = selected.includes(key);
         return (
           <button
@@ -64,7 +58,7 @@ function SizeFilter({ selected, onToggle }: { selected: string[]; onToggle: (s: 
                 : 'border-line bg-white text-ink-600 hover:border-sage-400',
             )}
           >
-            {FILTER_SIZE_LABEL(key)}
+            {label}
           </button>
         );
       })}
@@ -83,6 +77,7 @@ function PriceFilter({
   onChange: (min: number, max: number) => void;
 }) {
   const step = 10_000;
+  const { bounds: PRICE_BOUNDS } = useFacets();
   const [lo, setLo] = React.useState(min);
   const [hi, setHi] = React.useState(max);
 
@@ -164,8 +159,7 @@ export function FilterPanel({
     push({ [key]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value] } as Partial<ShopQuery>);
   };
 
-  const activeCount =
-    query.colors.length + query.sizes.length + (query.min > PRICE_BOUNDS.min || query.max < PRICE_BOUNDS.max ? 1 : 0) + (query.audience ? 1 : 0);
+  const activeCount = activeFilterCount(query);
 
   return (
     <div className="flex flex-col gap-7">
@@ -174,7 +168,7 @@ export function FilterPanel({
         {activeCount > 0 && (
           <button
             type="button"
-            onClick={() => push({ colors: [], sizes: [], min: PRICE_BOUNDS.min, max: PRICE_BOUNDS.max, audience: null })}
+            onClick={() => push({ colors: [], sizes: [], min: query.bounds.min, max: query.bounds.max, audience: null })}
             className="text-[0.6875rem] text-sage-700 underline decoration-sage-300 underline-offset-4 hover:text-sage-600"
           >
             پاک کردن ({num(activeCount)})

@@ -1,12 +1,15 @@
 import Link from 'next/link';
-import { CATEGORIES } from '@/lib/data/categories';
+import type { CategoryNode } from '@/lib/types';
 import { NewsletterForm } from '@/components/layout/newsletter-form';
 
-export function SiteFooter() {
-  return <FooterInner />;
-}
-
-function FooterInner() {
+export function SiteFooter({
+  categories,
+  settings,
+}: {
+  categories: CategoryNode[];
+  settings: { phone: string; email: string; hours: string };
+}) {
+  const CATEGORIES = categories;
   return (
     <footer className="mt-4 border-t border-line-soft bg-cream-100">
       <div className="container-x">
@@ -16,7 +19,7 @@ function FooterInner() {
             { title: 'الیاف طبیعی و نرم', body: 'پنبه، کتان و ابریشم با تأییدیهٔ کیفیت' },
             { title: 'ارسال سریع', body: '۲ تا ۴ روز کاری به سراسر ایران' },
             { title: 'بازگشت آسان', body: 'تا ۷ روز، بدون پرسش' },
-            { title: 'پشتیبانی واقعی', body: 'پاسخ انسانی، هر روز ۹ تا ۲۱' },
+            { title: 'پشتیبانی واقعی', body: settings.hours ? `پاسخ انسانی، ${settings.hours}` : 'پاسخ انسانی و سریع' },
           ].map((t) => (
             <div key={t.title} className="text-center sm:text-start">
               <p className="text-[0.8125rem] font-medium text-ink-900">{t.title}</p>
@@ -74,6 +77,12 @@ function FooterInner() {
                 </li>
               ))}
             </ul>
+            {(settings.phone || settings.email) && (
+              <div className="mt-4 space-y-1 text-[0.75rem] text-ink-500">
+                {settings.phone && <p>تلفن: <span dir="ltr">{settings.phone}</span></p>}
+                {settings.email && <p>ایمیل: <span dir="ltr">{settings.email}</span></p>}
+              </div>
+            )}
             <div className="mt-5 flex items-center gap-2">
               {['اینستاگرام', 'تلگرام', 'واتساپ'].map((s) => (
                 <span

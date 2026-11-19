@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Lock, Trash2, Truck } from 'lucide-react';
 import { useCart, useHydrated } from '@/lib/store';
 import { money, num, toman } from '@/lib/format';
-import { colorOf, sizeLabel } from '@/lib/data/taxonomy';
+import { useStoreConfig } from '@/components/layout/store-config';
 import { QuantityStepper, EmptyState } from '@/components/ui/misc';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { OrderSummary } from '@/components/cart/order-summary';
@@ -18,8 +18,9 @@ export function CartView() {
   const hydrated = useHydrated();
   const { items, setQty, remove } = useCart();
   const [coupon, setCoupon] = React.useState<{ code: string; amount: number; label?: string } | null>(null);
-  const totals = computeTotals(items);
-  const progress = freeShippingProgress(totals.subtotal);
+  const { freeShippingThreshold: FREE_SHIPPING_THRESHOLD, taxRate } = useStoreConfig();
+  const totals = computeTotals(items, { taxRate, freeShippingThreshold: FREE_SHIPPING_THRESHOLD });
+  const progress = freeShippingProgress(totals.subtotal, FREE_SHIPPING_THRESHOLD);
 
   if (!hydrated) {
     return (
@@ -132,11 +133,11 @@ export function CartView() {
 
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.6875rem] text-ink-400">
                       <span className="inline-flex items-center gap-1">
-                        <span className="size-2.5 rounded-full border border-white/70" style={{ backgroundImage: colorOf(item.color).swatch }} />
+                        <span className="size-2.5 rounded-full border border-white/70" style={{ backgroundColor: item.colorHex || '#E3D5C3' }} />
                         {item.colorName}
                       </span>
                       <span className="text-cream-400">•</span>
-                      <span>سایز {sizeLabel(item.size)}</span>
+                      <span>سایز {item.sizeLabel}</span>
                     </div>
 
                     {item.maxStock <= 5 && (

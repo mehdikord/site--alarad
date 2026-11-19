@@ -1,4 +1,9 @@
-import type { Product } from '@/lib/types';
+import type { ColorOption, Product, ProductImage } from '@/lib/types';
+
+export interface CardImage {
+  src: string;
+  blur: string;
+}
 
 export interface ProductCardData {
   slug: string;
@@ -7,8 +12,11 @@ export interface ProductCardData {
   price: number;
   compareAtPrice?: number;
   colors: string[];
-  sizes: string[];
-  shots: string[];
+  /** size labels (display only) */
+  sizeLabels: string[];
+  /** first two photos per colour key ('' = colour-less fallback) */
+  images: Record<string, CardImage[]>;
+  palette: Record<string, ColorOption>;
   tags?: string[];
   /** stock per colour, used to grey-out unavailable swatches */
   colorStock?: Record<string, number>;
@@ -17,14 +25,30 @@ export interface ProductCardData {
   reviewCount?: number;
 }
 
-export function toCardData(p: Product, stockMap?: Record<string, number>): ProductCardData {
+/** photos for a colour: colour-specific first, then shared photos, then anything */
+export function imagesForColor(images: ProductImage[], color: string | null | undefined): ProductImage[] {
+  const own = color ? images.filter((i) => i.color === color) : [];
+  const shared = images.filter((i) => i.color === null);
+  const list = [...own, ...shared];
+  return list.length ? list : images;
+}
+
+export function toCardData(p: Product): ProductCardData {
   const colorStock: Record<string, number> = {};
-  for (const c of p.colors) {
-    colorStock[c] = p.variants
-      .filter((v) => v.color === c)
-      .reduce((s, v) => s + (stockMap?.[v.id] ?? v.stock), 0);
+  for (const c of p.colors) colorStock[c] = p.variants.filter((v) => v.color === c).reduce((s, v) => s + v.stock, 0);
+  const totalStock = p.variants.reduce((s, v) => s + v.stock, 0);
+
+  const images: Record<string, CardImage[]> = {};
+  for (const c of p.colors.length ? p.colors : ['']) {
+    images[c] = imagesForColor(p.images, c || null)
+      .slice(0, 2)
+      .map((i) => ({ src: i.src, blur: i.blur }));
   }
-  const totalStock = Object.values(colorStock).reduce((a, b) => a + b, 0);
+  if (!images['']) images[''] = imagesForColor(p.images, null).slice(0, 2).map((i) => ({ src: i.src, blur: i.blur }));
+
+  const palette: Record<string, ColorOption> = {};
+  for (const c of p.colors) if (p.palette[c]) palette[c] = p.palette[c];
+
   return {
     slug: p.slug,
     name: p.name,
@@ -32,8 +56,9 @@ export function toCardData(p: Product, stockMap?: Record<string, number>): Produ
     price: p.price,
     compareAtPrice: p.compareAtPrice,
     colors: p.colors,
-    sizes: p.sizes,
-    shots: p.shots,
+    sizeLabels: p.sizes.map((s) => p.sizeMeta[s]?.label ?? s),
+    images,
+    palette,
     tags: p.tags,
     colorStock,
     totalStock,

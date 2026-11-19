@@ -2,8 +2,7 @@
 
 import * as React from 'react';
 import { Accordion } from '@/components/ui/misc';
-import { sizeLabel, sizeNote } from '@/lib/data/taxonomy';
-import { SIZE_SETS } from '@/lib/data/taxonomy';
+import type { SizeOption } from '@/lib/types';
 
 const SECTIONS = [
   { id: 'sizes', title: 'راهنمای سایزبندی' },
@@ -12,7 +11,8 @@ const SECTIONS = [
   { id: 'faq', title: 'سؤال‌های پرتکرار' },
 ];
 
-export function HelpContent() {
+export function HelpContent({ sizeGroups }: { sizeGroups: Record<string, SizeOption[]> }) {
+  const rowsOf = (group: string) => (sizeGroups[group] ?? []).map((s) => [s.label, s.note ?? '—']);
   return (
     <div className="mt-8 grid gap-8 pb-10 lg:grid-cols-[200px_1fr]">
       <nav className="hidden lg:block">
@@ -42,25 +42,25 @@ export function HelpContent() {
             <SizeTable
               title="جوراب‌شلواری"
               caption="انتخاب بر اساس قد — کمر کشی برگشت‌پذیر تا ۱۵ سانتی‌متر"
-              rows={SIZE_SETS.tights.map((s) => [sizeLabel(s.key), s.note ?? '—'])}
+              rows={rowsOf('tights')}
               head={['سایز', 'مناسب برای']}
             />
             <SizeTable
               title="شورت و زیرپوش زنانه"
               caption="انتخاب بر اساس دور باسن"
-              rows={SIZE_SETS.briefs.map((s) => [sizeLabel(s.key), s.note ?? '—'])}
+              rows={rowsOf('briefs')}
               head={['سایز', 'دور باسن (سانتی‌متر)']}
             />
             <SizeTable
               title="جوراب"
               caption="کشی ماندگار با بازهٔ پوشش دو سایز"
-              rows={SIZE_SETS.sock.map((s) => [sizeLabel(s.key), s.note ?? '—'])}
+              rows={rowsOf('sock')}
               head={['سایز', 'مناسب برای']}
             />
             <SizeTable
               title="شورت مردانه"
               caption="انتخاب بر اساس دور کمر"
-              rows={SIZE_SETS.boxer.map((s) => [sizeLabel(s.key), s.note ?? '—'])}
+              rows={rowsOf('boxer')}
               head={['سایز', 'دور کمر (سانتی‌متر)']}
             />
           </div>

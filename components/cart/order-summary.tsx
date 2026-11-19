@@ -5,10 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Tag, X } from 'lucide-react';
 import type { CartItem, CartTotals } from '@/lib/types';
 import { computeTotals } from '@/lib/pricing';
-import { applyCoupon, type CouponResult } from '@/lib/pricing';
+import { api } from '@/lib/store';
+import { useStoreConfig } from '@/components/layout/store-config';
 import { money, num, toman } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { FREE_SHIPPING_THRESHOLD, sizeLabel } from '@/lib/data/taxonomy';
+
+export interface CouponResult {
+  ok: boolean;
+  code?: string;
+  amount: number;
+  message: string;
+  label?: string;
+}
 
 export function CouponField({
   subtotal,
@@ -24,10 +32,25 @@ export function CouponField({
   const [code, setCode] = React.useState('');
   const [state, setState] = React.useState<'idle' | 'error' | 'ok'>('idle');
   const [message, setMessage] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = applyCoupon(code, subtotal);
+    if (!code.trim()) {
+      setState('error');
+      setMessage('کد تخفیف را وارد کنید.');
+      return;
+    }
+    setBusy(true);
+    const res = await api<{ code?: string; amount?: number; message?: string }>('/api/coupons/validate', { code, subtotal });
+    setBusy(false);
+    const result: CouponResult = {
+      ok: res.ok,
+      code: res.code,
+      amount: res.amount ?? 0,
+      message: res.message ?? (res.ok ? 'کد اعمال شد.' : 'این کد معتبر نیست.'),
+      label: res.message,
+    };
     if (result.ok) {
       onApply(result);
       setState('ok');
@@ -85,9 +108,10 @@ export function CouponField({
         </div>
         <button
           type="submit"
-          className="h-11 shrink-0 rounded-xl bg-cream-200 px-4 text-[0.75rem] font-medium text-ink-800 transition-colors hover:bg-cream-300"
+          disabled={busy}
+          className="h-11 shrink-0 rounded-xl bg-cream-200 px-4 text-[0.75rem] font-medium text-ink-800 transition-colors hover:bg-cream-300 disabled:opacity-60"
         >
-          اعمال
+          {busy ? '…' : 'اعمال'}
         </button>
       </div>
       <AnimatePresence>
@@ -102,11 +126,6 @@ export function CouponField({
           </motion.p>
         )}
       </AnimatePresence>
-      {state === 'idle' && (
-        <p className="mt-1.5 ps-1 text-[0.625rem] text-ink-300">
-          کدهای فعال: <span className="text-ink-400">ALARAD10</span> · <span className="text-ink-400">WELCOME15</span>
-        </p>
-      )}
     </form>
   );
 }
@@ -121,6 +140,7 @@ export function OrderSummary({
   showItems = false,
   compact = false,
   showCoupon = true,
+  serverTotals,
 }: {
   items: CartItem[];
   shippingCost?: number;
@@ -131,12 +151,17 @@ export function OrderSummary({
   showItems?: boolean;
   compact?: boolean;
   showCoupon?: boolean;
+  /** authoritative totals from /api/checkout/quote (overrides the local estimate) */
+  serverTotals?: { subtotal: number; discount: number; shipping: number; tax: number; total: number; itemCount: number } | null;
 }) {
-  const base = computeTotals(items);
-  const discount = coupon?.amount ?? 0;
+  const { freeShippingThreshold: FREE_SHIPPING_THRESHOLD, taxRate } = useStoreConfig();
+  const base = computeTotals(items, { freeShippingThreshold: FREE_SHIPPING_THRESHOLD, taxRate });
+  const discount = serverTotals ? serverTotals.discount : coupon?.amount ?? 0;
   const taxable = Math.max(base.subtotal - discount, 0);
-  const tax = Math.round(taxable * 0.09);
-  const total = Math.max(taxable + tax + shippingCost, 0);
+  const tax = serverTotals ? serverTotals.tax : Math.round((taxable * taxRate) / 100);
+  if (serverTotals) shippingCost = serverTotals.shipping;
+  const total = serverTotals ? serverTotals.total : Math.max(taxable + tax + shippingCost, 0);
+  const subtotal = serverTotals ? serverTotals.subtotal : base.subtotal;
 
   return (
     <div className={cn('rounded-xl border border-line-soft bg-white', compact ? 'p-4' : 'p-5 sm:p-6')}>
@@ -149,7 +174,7 @@ export function OrderSummary({
               <span className="min-w-0">
                 <span className="line-clamp-1 text-ink-700">{i.name}</span>
                 <span className="text-[0.625rem] text-ink-300">
-                  {i.colorName} · {sizeLabel(i.size)} × {num(i.qty)}
+                  {[i.colorName, i.sizeLabel].filter(Boolean).join(' · ')} × {num(i.qty)}
                 </span>
               </span>
               <span className="shrink-0 font-medium text-ink-800">{money(i.price * i.qty)}</span>
@@ -159,14 +184,14 @@ export function OrderSummary({
       )}
 
       <div className="mt-4 space-y-2.5 text-[0.8125rem]">
-        <Row label={`جمع کالاها (${num(base.itemCount)} قلم)`} value={toman(base.subtotal)} />
+        <Row label={`جمع کالاها (${num(base.itemCount)} قلم)`} value={toman(subtotal)} />
         {discount > 0 && <Row label={`تخفیف (${coupon?.code})`} value={`− ${toman(discount)}`} tone="sage" />}
         <Row
           label={shippingTitle ? `ارسال — ${shippingTitle}` : 'هزینهٔ ارسال'}
           value={shippingCost === 0 ? 'رایگان' : toman(shippingCost)}
           tone={shippingCost === 0 ? 'sage' : undefined}
         />
-        <Row label="مالیات بر ارزش افزوده (۹٪)" value={toman(tax)} />
+        {taxRate > 0 && <Row label={`مالیات بر ارزش افزوده (${num(taxRate)}٪)`} value={toman(tax)} />}
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-line-soft pt-3.5">

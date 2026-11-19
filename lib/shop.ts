@@ -1,7 +1,10 @@
 import type { Product, CategorySlug, Audience } from '@/lib/types';
-import { PRODUCTS, PRICE_BOUNDS } from '@/lib/data/products';
-import { COLORS, colorOf, sizeLabel, ALL_SIZES } from '@/lib/data/taxonomy';
 import { toLatinDigits } from '@/lib/format';
+
+export interface PriceBounds {
+  min: number;
+  max: number;
+}
 
 export type SortKey = 'newest' | 'popular' | 'price-asc' | 'price-desc' | 'rating' | 'discount';
 
@@ -24,6 +27,8 @@ export interface ShopQuery {
   audience: Audience | null;
   tag: string | null;
   category: CategorySlug | null;
+  /** catalogue price range (from the DB) — used to omit default min/max from URLs */
+  bounds: PriceBounds;
 }
 
 type RawParams = Record<string, string | string[] | undefined>;
@@ -32,20 +37,25 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 const list = (v: string | string[] | undefined) =>
   (Array.isArray(v) ? v : typeof v === 'string' ? v.split(',') : []).map((s) => s.trim()).filter(Boolean);
 
-export function parseQuery(params: RawParams, category?: string): ShopQuery {
+export function parseQuery(
+  params: RawParams,
+  opts: { category?: string; bounds: PriceBounds; colorKeys: string[]; sizeKeys: string[] },
+): ShopQuery {
+  const { category, bounds: PRICE_BOUNDS } = opts;
   const min = Number(toLatinDigits(one(params.min)));
   const max = Number(toLatinDigits(one(params.max)));
   const sortRaw = one(params.sort) as SortKey;
   return {
     q: one(params.q),
-    colors: list(params.colors).filter((c) => COLORS[c]),
-    sizes: list(params.sizes).filter((s) => ALL_SIZES.some((x) => x.key === s)),
+    colors: list(params.colors).filter((c) => opts.colorKeys.includes(c)),
+    sizes: list(params.sizes).filter((s) => opts.sizeKeys.includes(s)),
     min: Number.isFinite(min) && min > 0 ? min : PRICE_BOUNDS.min,
     max: Number.isFinite(max) && max > 0 ? max : PRICE_BOUNDS.max,
     sort: SORT_OPTIONS.some((s) => s.key === sortRaw) ? sortRaw : 'popular',
     audience: (['women', 'men', 'kids', 'unisex'].includes(one(params.audience)) ? one(params.audience) : null) as Audience | null,
     tag: one(params.tag) || null,
     category: (category as CategorySlug) ?? null,
+    bounds: PRICE_BOUNDS,
   };
 }
 
@@ -56,10 +66,10 @@ const norm = (s: string) =>
     .replace(/[\u064B-\u0652]/g, '')
     .toLowerCase();
 
-export function filterProducts(query: ShopQuery, source: Product[] = PRODUCTS) {
+/** `source` should already be limited to the category (+ its descendants) */
+export function filterProducts(query: ShopQuery, source: Product[]) {
   const q = norm(query.q.trim());
   return source.filter((p) => {
-    if (query.category && p.category !== query.category) return false;
     if (query.audience && p.audience !== query.audience && p.audience !== 'unisex') return false;
     if (query.tag && !p.tags.includes(query.tag as never)) return false;
     if (p.price < query.min || p.price > query.max) return false;
@@ -67,7 +77,14 @@ export function filterProducts(query: ShopQuery, source: Product[] = PRODUCTS) {
     if (query.sizes.length && !p.sizes.some((s) => query.sizes.includes(s))) return false;
     if (q) {
       const haystack = norm(
-        [p.name, p.subtitle, p.description.join(' '), colorOf(p.colors[0]).name, ...p.tags].join(' '),
+        [
+          p.name,
+          p.subtitle,
+          p.description.join(' '),
+          p.categoryPath.map((c) => c.name).join(' '),
+          ...p.colors.map((c) => p.palette[c]?.name ?? ''),
+          ...p.tags,
+        ].join(' '),
       );
       if (!haystack.includes(q)) return false;
     }
@@ -100,6 +117,7 @@ export function sortProducts(items: Product[], sort: SortKey) {
 /** build a query string from the current query + a patch */
 export function buildHref(base: string, query: Partial<ShopQuery>, patch: Partial<ShopQuery> = {}) {
   const merged = { ...query, ...patch };
+  const PRICE_BOUNDS = merged.bounds ?? { min: 0, max: Number.MAX_SAFE_INTEGER };
   const sp = new URLSearchParams();
   if (merged.q) sp.set('q', merged.q);
   if (merged.colors?.length) sp.set('colors', merged.colors.join(','));
@@ -113,10 +131,8 @@ export function buildHref(base: string, query: Partial<ShopQuery>, patch: Partia
   return qs ? `${base}?${qs}` : base;
 }
 
-export const COLOR_FILTERS = ['cream', 'oat', 'sage', 'blush', 'rose', 'dove', 'charcoal', 'black', 'navy'];
-export const SIZE_FILTERS = ['s', 'm', 'l', 'xl', 'festival', 'standard', 'kids-s', 'kids-m', 'kids-l', 'xxl', 'one'];
-
-export const FILTER_SIZE_LABEL = (key: string) => (key === 'one' ? 'یک اندازه' : sizeLabel(key));
+export const activeFilterCount = (q: ShopQuery) =>
+  q.colors.length + q.sizes.length + (q.audience ? 1 : 0) + (q.min > q.bounds.min || q.max < q.bounds.max ? 1 : 0);
 
 export const AUDIENCE_LABELS: Record<string, string> = {
   women: 'زنانه',

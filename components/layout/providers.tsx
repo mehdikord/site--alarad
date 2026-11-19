@@ -1,16 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useCart, useAuth, useCatalog } from '@/lib/store';
-import { useOrders } from '@/lib/store/orders';
+import { useCart, useAuth } from '@/lib/store';
 
-/** Rehydrate persisted stores after mount — keeps SSR markup identical (no hydration flash). */
+/** Rehydrate the persisted cart after mount (no hydration flash) and load the signed-in user. */
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     useCart.persist.rehydrate();
-    useAuth.persist.rehydrate();
-    useOrders.persist.rehydrate();
-    useCatalog.persist.rehydrate();
+    void useAuth.getState().refresh();
   }, []);
 
   return <>{children}</>;

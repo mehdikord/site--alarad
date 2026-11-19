@@ -3,4 +3,7 @@ node_modules
 _raw
 _test
 *.tsbuildinfo
+.env
 .env*.local
+/storage/uploads/*
+!/storage/uploads/.gitkeep
