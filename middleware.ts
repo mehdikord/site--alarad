@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ADMIN_COOKIE, verifySession } from '@/lib/auth/jwt';
 
+/**
+ * Relative redirect: the browser resolves it against the domain it is already on.
+ * (Behind a reverse proxy `req.url` is the internal address, e.g. localhost:3077.)
+ */
+const redirectTo = (location: string) => new NextResponse(null, { status: 307, headers: { Location: location } });
+
 /** Gate /admins/* (except the login page) and /api/admin/* behind a valid admin session. */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -13,14 +19,13 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isLogin) {
-    if (session) return NextResponse.redirect(new URL('/admins', req.url));
+    if (session) return redirectTo('/admins');
     return NextResponse.next();
   }
 
   if (!session) {
-    const url = new URL('/admins/login', req.url);
-    if (pathname !== '/admins') url.searchParams.set('next', pathname);
-    return NextResponse.redirect(url);
+    const next = pathname !== '/admins' ? `?next=${encodeURIComponent(pathname)}` : '';
+    return redirectTo(`/admins/login${next}`);
   }
   return NextResponse.next();
 }

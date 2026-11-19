@@ -24,7 +24,7 @@ export async function startPayment(orderId: bigint, ip?: string | null) {
   const result = await driver.request({
     amount: order.total,
     orderCode: order.code,
-    callbackUrl: `${appUrl()}/api/payments/callback?payment=${payment.id}`,
+    callbackUrl: `${await appUrl()}/api/payments/callback?payment=${payment.id}`,
     description: `سفارش ${order.code} — الاردشاپ`,
     mobile: order.receiverPhone,
   });
