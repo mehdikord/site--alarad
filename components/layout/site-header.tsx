@@ -37,9 +37,13 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
 
   useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 12));
 
+  const closeMega = React.useCallback(() => setHoverCat(null), []);
+
   React.useEffect(() => {
     setOpenMenu(false);
     setOpenSearch(false);
+    setOpenGroup(null);
+    setHoverCat(null);
   }, [pathname]);
 
   const isHome = pathname === '/';
@@ -88,6 +92,7 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
                   <div key={c.slug} onMouseEnter={() => setHoverCat(c.slug)}>
                     <Link
                       href={`/shop/${c.slug}`}
+                      onClick={closeMega}
                       className={cn(
                         'relative inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-[0.8125rem] transition-colors duration-300',
                         inTree ? 'text-ink-900' : 'text-ink-500 hover:text-ink-900',
@@ -108,6 +113,8 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
                 })}
                 <Link
                   href="/shop"
+                  onClick={closeMega}
+                  onMouseEnter={closeMega}
                   className="rounded-full px-3.5 py-2 text-[0.8125rem] text-ink-500 transition-colors hover:text-ink-900"
                 >
                   همهٔ محصولات
@@ -170,11 +177,15 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
           {hovered && (
             <motion.div
               initial={{opacity: 0, y: -6}}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0, pointerEvents: 'auto' }}
+              exit={{ opacity: 0, y: -6, pointerEvents: 'none' }}
               transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               onMouseEnter={() => setHoverCat(hovered.slug)}
-              onMouseLeave={() => setHoverCat(null)}
+              onMouseLeave={closeMega}
+              onClickCapture={(e) => {
+                // any link inside the panel → close it right away, don't wait for the route to change
+                if ((e.target as HTMLElement).closest('a')) closeMega();
+              }}
               className="absolute inset-x-0 top-full hidden border-b border-line-soft bg-cream-50/97 backdrop-blur-xl lg:block"
             >
               <div className="container-x grid grid-cols-[1.1fr_1.4fr_0.9fr] gap-8 py-8">
