@@ -46,6 +46,22 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
     setHoverCat(null);
   }, [pathname]);
 
+  // the mega panel stays open on mouse-leave; it closes on route change, a click outside the header, or Esc
+  const headerRef = React.useRef<HTMLElement>(null);
+  React.useEffect(() => {
+    if (!hoverCat) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!headerRef.current?.contains(e.target as Node)) setHoverCat(null);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setHoverCat(null);
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [hoverCat]);
+
   const isHome = pathname === '/';
   const hovered = CATEGORIES.find((c) => c.slug === hoverCat) ?? null;
 
@@ -65,6 +81,7 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
       </div>
 
       <header
+        ref={headerRef}
         className={cn(
           'sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-silk',
           scrolled || !isHome
@@ -85,21 +102,20 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
                 <Menu className="size-5" strokeWidth={1.6} />
               </button>
 
-              <nav className="hidden items-center gap-1 lg:flex" onMouseLeave={() => setHoverCat(null)}>
+              <nav className="hidden items-center gap-1 lg:flex">
                 {CATEGORIES.slice(0, 6).map((c) => {
                   const inTree = pathname === `/shop/${c.slug}` || c.children.some((ch) => pathname === `/shop/${ch.slug}` || ch.children.some((g) => pathname === `/shop/${g.slug}`));
-                  return (
-                  <div key={c.slug} onMouseEnter={() => setHoverCat(c.slug)}>
-                    <Link
-                      href={`/shop/${c.slug}`}
-                      onClick={closeMega}
-                      className={cn(
-                        'relative inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-[0.8125rem] transition-colors duration-300',
-                        inTree ? 'text-ink-900' : 'text-ink-500 hover:text-ink-900',
-                      )}
-                    >
+                  const isOpen = hoverCat === c.slug;
+                  const itemClass = cn(
+                    'relative inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-[0.8125rem] transition-colors duration-300',
+                    inTree || isOpen ? 'text-ink-900' : 'text-ink-500 hover:text-ink-900',
+                  );
+                  const inner = (
+                    <>
                       {c.name}
-                      {c.children.length > 0 && <ChevronDown className="size-3 text-ink-300" strokeWidth={2} />}
+                      {c.children.length > 0 && (
+                        <ChevronDown className={cn('size-3 text-ink-300 transition-transform duration-300', isOpen && 'rotate-180')} strokeWidth={2} />
+                      )}
                       {inTree && (
                         <motion.span
                           layoutId="nav-underline"
@@ -107,14 +123,26 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
                           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                         />
                       )}
-                    </Link>
+                    </>
+                  );
+                  return (
+                  <div key={c.slug} onMouseEnter={() => setHoverCat(c.slug)}>
+                    {c.children.length > 0 ? (
+                      // has a submenu → clicking opens it (the panel has the "view all" link)
+                      <button type="button" onClick={() => setHoverCat(c.slug)} aria-expanded={isOpen} className={itemClass}>
+                        {inner}
+                      </button>
+                    ) : (
+                      <Link href={`/shop/${c.slug}`} onClick={closeMega} className={itemClass}>
+                        {inner}
+                      </Link>
+                    )}
                   </div>
                   );
                 })}
                 <Link
                   href="/shop"
                   onClick={closeMega}
-                  onMouseEnter={closeMega}
                   className="rounded-full px-3.5 py-2 text-[0.8125rem] text-ink-500 transition-colors hover:text-ink-900"
                 >
                   همهٔ محصولات
@@ -180,8 +208,6 @@ export function SiteHeader({ categories, freeShippingThreshold }: { categories: 
               animate={{ opacity: 1, y: 0, pointerEvents: 'auto' }}
               exit={{ opacity: 0, y: -6, pointerEvents: 'none' }}
               transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              onMouseEnter={() => setHoverCat(hovered.slug)}
-              onMouseLeave={closeMega}
               onClickCapture={(e) => {
                 // any link inside the panel → close it right away, don't wait for the route to change
                 if ((e.target as HTMLElement).closest('a')) closeMega();
